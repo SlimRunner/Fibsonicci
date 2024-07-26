@@ -1,6 +1,27 @@
+ifeq ($(OS),Windows_NT)
+	detected_OS := Windows
+else
+	detected_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
+endif
+
+ifeq ($(detected_OS),Windows)
+	RM = del /Q /S
+	FixPath = $(subst /,\,$1)
+	MD = if not exist $1 mkdir $1
+	FixQuotes = $(subst /,\,$(subst ",,$1))
+	EXT = .exe
+endif
+ifeq ($(detected_OS),Linux)
+	RM = rm -rf
+	FixPath = $1
+	MD = mkdir -p $1
+	FixQuotes = $1
+	EXT = .out
+endif
+
 FLAGS = 
 
-CC = g++ -std=c++23 -I. -march=native -fno-math-errno $(FLAGS)
+CC = g++ -std=c++23 -I . -march=native -fno-math-errno $(FLAGS)
 
 IMPL_DIR = impl
 OBJ_DIR = obj
@@ -12,21 +33,21 @@ EVAL = eval.cpp
 
 .PHONY: init
 init:
-	mkdir -p $(OBJ_DIR)
-	mkdir -p $(BIN_DIR)
-	mkdir -p $(DATA_DIR)
+	$(call MD,$(OBJ_DIR))
+	$(call MD,$(BIN_DIR))
+	$(call MD,$(DATA_DIR))
 
 .PHONY: clean clean-bin clean-data clean-all
 clean-all: clean clean-bin clean-data
 
 clean: # clean objects
-	rm -f $(OBJ_DIR)/*
+	$(RM) $(OBJ_DIR)
 
 clean-bin:
-	rm -f $(BIN_DIR)/*
+	$(RM) $(BIN_DIR)
 
 clean-data:
-	rm -f $(DATA_DIR)/*
+	$(RM) $(DATA_DIR)
 
 
 
@@ -56,25 +77,25 @@ all-data: $(IMPL_GOAL:%=$(DATA_DIR)/%.dat)
 all-data-long: $(IMPL_LONG:%=$(DATA_DIR)/%.dat)
 
 $(IMPL_LIMIT:%=run-%): run-%: $(BIN_DIR)/%
-	./$^
+	$(call FixQuotes,./$^)
 
-$(IMPL_LIMIT:%=$(DATA_DIR)/%.dat): $(DATA_DIR)/%.dat: $(BIN_DIR)/%.out
-	./$^ > $@
+$(IMPL_LIMIT:%=$(DATA_DIR)/%.dat): $(DATA_DIR)/%.dat: $(BIN_DIR)/%$(EXT)
+	$(call FixQuotes,./$^) > $@
 
 
 .PHONY: all all-obj
 
-all: $(IMPL_LIMIT:%=$(BIN_DIR)/%.out)
+all: $(IMPL_LIMIT:%=$(BIN_DIR)/%$(EXT))
 
 all-obj: $(IMPL_OPT:%=$(OBJ_DIR)/%.o)
 
 
 .SECONDEXPANSION:
-$(IMPL_OPT:%=$(BIN_DIR)/one_%.out): $(BIN_DIR)/one_%.out: $(FIB) $(OBJ_DIR)/$$(word 1,$$(subst ., ,%)).$$(word 2,$$(subst ., ,%)).o
+$(IMPL_OPT:%=$(BIN_DIR)/one_%$(EXT)): $(BIN_DIR)/one_%$(EXT): $(FIB) $(OBJ_DIR)/$$(word 1,$$(subst ., ,%)).$$(word 2,$$(subst ., ,%)).o
 	$(CC) $^ -o $@ -$(word 2,$(subst ., ,$@))
 
 .SECONDEXPANSION:
-$(IMPL_LIMIT:%=$(BIN_DIR)/%.out): $(BIN_DIR)/%.out: $(EVAL) $(OBJ_DIR)/$$(word 1,$$(subst ., ,%)).$$(word 2,$$(subst ., ,%)).o
+$(IMPL_LIMIT:%=$(BIN_DIR)/%$(EXT)): $(BIN_DIR)/%$(EXT): $(EVAL) $(OBJ_DIR)/$$(word 1,$$(subst ., ,%)).$$(word 2,$$(subst ., ,%)).o
 	$(CC) $^ -o $@ -$(word 2,$(subst ., ,$@)) -DLIMIT=$(patsubst %,%,$(word 3,$(subst ., ,$@))) -lpthread
 
 
